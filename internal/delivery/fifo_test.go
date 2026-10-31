@@ -62,6 +62,7 @@ func startFIFOHarness(t *testing.T, path string, gen GeneratorFunc) *fifoHarness
 	select {
 	case <-ready:
 	case err := <-done:
+		h.stopOnce.Do(func() {})
 		t.Fatalf("FIFO server failed before ready: %v", err)
 	case <-time.After(3 * time.Second):
 		t.Fatal("FIFO server did not become ready")
