@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -62,6 +63,7 @@ func (s *FIFOServer) Run(ctx context.Context) (retErr error) {
 	}
 	defer lock.release()
 
+	cleanupStaleTempFIFOs(path)
 	info, err := prepareFIFOPath(path)
 	if err != nil {
 		return err
@@ -168,14 +170,20 @@ func rotateFIFO(path string, current os.FileInfo) (os.FileInfo, error) {
 		return nil, fmt.Errorf("FIFO path changed to an unexpected object: %s", path)
 	}
 
-	tempPath, err := createTempFIFO(filepath.Dir(path))
+	tempPath, err := createTempFIFO(path)
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(tempPath)
+	installed := false
+	defer func() {
+		if !installed {
+			_ = os.Remove(tempPath)
+		}
+	}()
 	if err := os.Rename(tempPath, path); err != nil {
 		return nil, fmt.Errorf("install next FIFO: %w", err)
 	}
+	installed = true
 	info, err := os.Lstat(path)
 	if err != nil {
 		return nil, fmt.Errorf("inspect rotated FIFO: %w", err)
@@ -186,13 +194,40 @@ func rotateFIFO(path string, current os.FileInfo) (os.FileInfo, error) {
 	return info, nil
 }
 
-func createTempFIFO(dir string) (string, error) {
+func tempFIFOPrefix(path string) string {
+	return "." + filepath.Base(path) + ".next-"
+}
+
+// cleanupStaleTempFIFOs removes only hidden next-inode FIFOs belonging to this
+// endpoint. A previous server may have crashed between mkfifo and rename.
+func cleanupStaleTempFIFOs(path string) {
+	dir := filepath.Dir(path)
+	prefix := tempFIFOPrefix(path)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), prefix) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || !modeIsFIFO(info) || !ownedByCurrentUser(info) {
+			continue
+		}
+		_ = os.Remove(filepath.Join(dir, entry.Name()))
+	}
+}
+
+func createTempFIFO(targetPath string) (string, error) {
+	dir := filepath.Dir(targetPath)
+	prefix := tempFIFOPrefix(targetPath)
 	var suffix [8]byte
 	for tries := 0; tries < 16; tries++ {
 		if _, err := rand.Read(suffix[:]); err != nil {
 			return "", fmt.Errorf("generate FIFO name: %w", err)
 		}
-		path := filepath.Join(dir, ".cattv-fifo-"+hex.EncodeToString(suffix[:]))
+		path := filepath.Join(dir, prefix+hex.EncodeToString(suffix[:]))
 		err := unix.Mkfifo(path, 0o600)
 		if errors.Is(err, unix.EEXIST) {
 			continue

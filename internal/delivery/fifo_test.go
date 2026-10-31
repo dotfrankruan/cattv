@@ -355,3 +355,19 @@ func TestFIFORejectsSecondServer(t *testing.T) {
 	}
 	h.stop(t)
 }
+
+func TestFIFORemovesStaleRotationTemps(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cat.fifo")
+	stale := filepath.Join(dir, tempFIFOPrefix(path)+"deadbeef")
+	if err := unix.Mkfifo(stale, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h := startFIFOHarness(t, path, func(context.Context) ([]byte, error) {
+		return []byte("frame"), nil
+	})
+	if _, err := os.Lstat(stale); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stale rotation FIFO still exists: %v", err)
+	}
+	h.stop(t)
+}
