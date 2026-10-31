@@ -1,6 +1,9 @@
 # Local dataset artifacts (not redistributed)
 /data/*.parquet
 
+# Local smoke-test data
+/.smoke-data/
+
 # Build and test output
 /bin/
 /dist/

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -9,7 +10,7 @@ import (
 	"github.com/dotfrankruan/cattv/internal/library"
 )
 
-func (c *cli) runImport(args []string) error {
+func (c *cli) runImport(ctx context.Context, args []string) error {
 	fs := newFlagSet("cattv import")
 	var help bool
 	addHelpFlag(fs, &help)
@@ -25,7 +26,7 @@ func (c *cli) runImport(args []string) error {
 		return &usageError{err: errors.New("import requires at least one file or directory")}
 	}
 	store := library.NewStore(c.cfg.LibraryPath)
-	idx, report, err := store.Import(paths)
+	idx, report, err := store.ImportContext(ctx, paths)
 	if err != nil {
 		return err
 	}
@@ -47,7 +48,7 @@ func (c *cli) runImport(args []string) error {
 	return nil
 }
 
-func (c *cli) runLibrary(args []string) error {
+func (c *cli) runLibrary(ctx context.Context, args []string) error {
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
 		c.printLibraryHelp()
 		return nil
@@ -61,7 +62,7 @@ func (c *cli) runLibrary(args []string) error {
 	case "clear":
 		return c.runLibraryClear(rest)
 	case "add":
-		return c.runImport(rest)
+		return c.runImport(ctx, rest)
 	default:
 		return &usageError{err: fmt.Errorf("unknown library command %q", sub)}
 	}

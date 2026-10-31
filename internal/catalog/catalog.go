@@ -442,6 +442,3 @@ func (p Photo) Credit() string {
 	}
 	return strings.Join(parts, " · ")
 }
-
-// Close is a no-op retained for symmetry with future catalog implementations.
-func (c *Catalog) Close() error { return nil }

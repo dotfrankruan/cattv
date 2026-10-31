@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dotfrankruan/cattv/internal/library"
 	"github.com/dotfrankruan/cattv/internal/render"
 	"github.com/dotfrankruan/cattv/internal/state"
 )
@@ -104,9 +103,4 @@ func (a *App) Local(ctx context.Context) (*Shown, error) {
 	}
 	return nil, fmt.Errorf("%w: local library images are unreadable: %v; run `cattv import <path>` again",
 		ErrNoImage, lastErr)
-}
-
-// LibraryIndex returns the current local library for status commands.
-func (a *App) LibraryIndex() (*library.Index, error) {
-	return a.libraryStore().Load()
 }

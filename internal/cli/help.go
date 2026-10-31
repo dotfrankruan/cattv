@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 )
 
 func (c *cli) printHelp() {
@@ -74,8 +73,10 @@ func (c *cli) printHelpTopic(args []string) {
 		c.printLocalHelp()
 	case "import":
 		c.printImportHelp()
-	case "init", "catalog":
+	case "init":
 		c.printInitHelp()
+	case "catalog":
+		c.printCatalogHelp()
 	case "library":
 		c.printLibraryHelp()
 	case "doctor":
@@ -185,8 +186,4 @@ automatic renderer choice, and external tool availability. Doctor performs no
 network image download.
 `)
 	c.printDisplayFlags()
-}
-
-func indent(s, prefix string) string {
-	return prefix + strings.ReplaceAll(s, "\n", "\n"+prefix)
 }

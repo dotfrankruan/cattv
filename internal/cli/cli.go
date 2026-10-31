@@ -111,13 +111,13 @@ func (c *cli) afterConfig(ctx context.Context, args []string) error {
 	case "local":
 		return c.runLocal(ctx, rest)
 	case "import":
-		return c.runImport(rest)
+		return c.runImport(ctx, rest)
 	case "init":
 		return c.runInit(ctx, rest)
 	case "catalog":
 		return c.runCatalog(ctx, rest)
 	case "library":
-		return c.runLibrary(rest)
+		return c.runLibrary(ctx, rest)
 	case "doctor":
 		return c.runDoctor(rest)
 	default:

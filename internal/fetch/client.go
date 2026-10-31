@@ -178,7 +178,10 @@ func (c *Client) Get(ctx context.Context, rawURL string) ([]byte, error) {
 			return nil, err
 		}
 
-		wait := delay * time.Duration(1<<attempt)
+		wait := delay
+		for i := 0; i < attempt && i < 6; i++ {
+			wait *= 2
+		}
 		if fetchErr.RetryAfter > 0 {
 			wait = fetchErr.RetryAfter
 		}

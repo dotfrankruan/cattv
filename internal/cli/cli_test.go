@@ -118,9 +118,6 @@ func TestShowLocalImageWithTrailingFlags(t *testing.T) {
 	if !strings.Contains(out, "\x1b[38;2;") || !strings.Contains(out, "▀") {
 		t.Fatalf("show did not emit ANSI image output: %q", out[:minInt(len(out), 80)])
 	}
-	if filepath.Base(path) == "" {
-		t.Fatal("unreachable")
-	}
 }
 
 func TestImportListAndLocal(t *testing.T) {

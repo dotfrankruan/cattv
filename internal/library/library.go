@@ -3,6 +3,7 @@
 package library
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -122,11 +123,20 @@ func (s *Store) Save(idx *Index) error {
 	})
 }
 
-// Import scans files and directories for supported images, deduplicating by
-// absolute path, and atomically updates the index.
+// Import scans files and directories without cancellation support. It is a
+// convenience wrapper around ImportContext.
 func (s *Store) Import(paths []string) (*Index, ImportReport, error) {
+	return s.ImportContext(context.Background(), paths)
+}
+
+// ImportContext scans files and directories for supported images,
+// deduplicating by absolute path, and atomically updates the index.
+func (s *Store) ImportContext(ctx context.Context, paths []string) (*Index, ImportReport, error) {
 	if len(paths) == 0 {
 		return nil, ImportReport{}, errors.New("no files or directories specified")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, ImportReport{}, err
 	}
 	idx, err := s.Load()
 	if err != nil {
@@ -139,13 +149,19 @@ func (s *Store) Import(paths []string) (*Index, ImportReport, error) {
 	}
 	visited := make(map[string]bool)
 	for _, root := range paths {
-		if err := walkImportRoot(root, func(path string) {
+		if err := ctx.Err(); err != nil {
+			return nil, report, err
+		}
+		if err := walkImportRoot(ctx, root, func(path string) {
 			if visited[path] {
 				return
 			}
 			visited[path] = true
 			s.importFile(path, idx, existing, &report)
 		}, &report); err != nil {
+			if ctx.Err() != nil {
+				return nil, report, ctx.Err()
+			}
 			report.Warnings = append(report.Warnings, err.Error())
 		}
 	}
@@ -157,7 +173,7 @@ func (s *Store) Import(paths []string) (*Index, ImportReport, error) {
 	return idx, report, nil
 }
 
-func walkImportRoot(root string, visit func(string), report *ImportReport) error {
+func walkImportRoot(ctx context.Context, root string, visit func(string), report *ImportReport) error {
 	info, err := os.Stat(root)
 	if err != nil {
 		return fmt.Errorf("%s: %w", root, err)
@@ -174,6 +190,9 @@ func walkImportRoot(root string, visit func(string), report *ImportReport) error
 		return nil
 	}
 	return filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if walkErr != nil {
 			report.Warnings = append(report.Warnings, fmt.Sprintf("%s: %v", path, walkErr))
 			if d != nil && d.IsDir() {

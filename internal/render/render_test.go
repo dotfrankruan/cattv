@@ -26,25 +26,6 @@ func testImage(w, h int) *image.NRGBA {
 	return img
 }
 
-func TestFitDimensions(t *testing.T) {
-	tests := []struct {
-		w, h, mw, mh int
-		wantW, wantH int
-	}{
-		{400, 300, 200, 200, 200, 150},
-		{300, 400, 200, 200, 150, 200},
-		{100, 100, 200, 200, 100, 100},
-		{1000, 100, 100, 100, 100, 10},
-	}
-	for _, tt := range tests {
-		gotW, gotH := fitDimensions(tt.w, tt.h, tt.mw, tt.mh)
-		if gotW != tt.wantW || gotH != tt.wantH {
-			t.Errorf("fitDimensions(%d,%d,%d,%d) = %d,%d; want %d,%d",
-				tt.w, tt.h, tt.mw, tt.mh, gotW, gotH, tt.wantW, tt.wantH)
-		}
-	}
-}
-
 func TestANSIRender(t *testing.T) {
 	var out bytes.Buffer
 	result, err := ansiRenderer{}.Render(&out, testImage(400, 300), Env{

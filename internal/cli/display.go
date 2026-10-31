@@ -41,15 +41,12 @@ func (c *cli) runNext(ctx context.Context, args []string) error {
 	networkCtx, cancel := context.WithTimeout(ctx, flags.timeout)
 	defer cancel()
 	fetcher := fetch.New(minDuration(flags.timeout, 10*time.Second), flags.retries, maxDownloadBytes, version.UserAgent())
-	a, err := app.New(displayOptions(c, flags, setup).options(), fetcher)
+	a, err := c.newApp(flags, setup, fetcher)
 	if err != nil {
 		return err
 	}
 	_, err = a.Next(networkCtx)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (c *cli) runShow(args []string) error {
@@ -77,7 +74,7 @@ func (c *cli) runShow(args []string) error {
 	if err != nil {
 		return err
 	}
-	a, err := app.New(displayOptions(c, flags, setup).options(), nil)
+	a, err := c.newApp(flags, setup, nil)
 	if err != nil {
 		return err
 	}
@@ -110,7 +107,7 @@ func (c *cli) runLocal(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	a, err := app.New(displayOptions(c, flags, setup).options(), nil)
+	a, err := c.newApp(flags, setup, nil)
 	if err != nil {
 		return err
 	}
@@ -118,31 +115,20 @@ func (c *cli) runLocal(ctx context.Context, args []string) error {
 	return err
 }
 
-// appOptionsBuilder avoids repeating the many fields in two display commands.
-type appOptionsBuilder struct {
-	c     *cli
-	flags *displayFlags
-	setup displaySetup
-}
-
-func displayOptions(c *cli, flags *displayFlags, setup displaySetup) appOptionsBuilder {
-	return appOptionsBuilder{c: c, flags: flags, setup: setup}
-}
-
-func (b appOptionsBuilder) options() app.Options {
-	return app.Options{
-		CatalogPath: b.c.cfg.CatalogPath,
-		LibraryPath: b.c.cfg.LibraryPath,
-		StatePath:   b.c.cfg.StatePath,
-		Renderer:    b.setup.kind,
-		Geometry:    b.setup.geometry,
-		MaxColumns:  b.flags.width,
-		MaxRows:     b.flags.height,
-		NoCaption:   b.flags.noCaption,
-		Color:       b.setup.geometry.TTY,
-		Out:         b.c.out,
-		Log:         b.c.errOut,
-	}
+func (c *cli) newApp(flags *displayFlags, setup displaySetup, fetcher app.Fetcher) (*app.App, error) {
+	return app.New(app.Options{
+		CatalogPath: c.cfg.CatalogPath,
+		LibraryPath: c.cfg.LibraryPath,
+		StatePath:   c.cfg.StatePath,
+		Renderer:    setup.kind,
+		Geometry:    setup.geometry,
+		MaxColumns:  flags.width,
+		MaxRows:     flags.height,
+		NoCaption:   flags.noCaption,
+		Color:       setup.geometry.TTY,
+		Out:         c.out,
+		Log:         c.errOut,
+	}, fetcher)
 }
 
 func minDuration(a, b time.Duration) time.Duration {

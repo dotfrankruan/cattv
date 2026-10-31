@@ -64,37 +64,6 @@ func DecodeFile(path string) (image.Image, string, error) {
 	return Decode(f)
 }
 
-// fitDimensions scales width and height uniformly to fit inside maxW x maxH.
-func fitDimensions(width, height, maxW, maxH int) (int, int) {
-	if width <= 0 || height <= 0 || maxW <= 0 || maxH <= 0 {
-		return 0, 0
-	}
-	if width <= maxW && height <= maxH {
-		return width, height
-	}
-	scaleW := float64(maxW) / float64(width)
-	scaleH := float64(maxH) / float64(height)
-	scale := scaleW
-	if scaleH < scale {
-		scale = scaleH
-	}
-	w := int(float64(width)*scale + 0.5)
-	h := int(float64(height)*scale + 0.5)
-	if w < 1 {
-		w = 1
-	}
-	if h < 1 {
-		h = 1
-	}
-	if w > maxW {
-		w = maxW
-	}
-	if h > maxH {
-		h = maxH
-	}
-	return w, h
-}
-
 // fillDimensions scales width and height uniformly to use the full maxW x maxH
 // box, upscaling when necessary. Rendering, not decoding, decides whether an
 // upscale actually has to be materialized.
@@ -129,12 +98,6 @@ func scaleTo(img image.Image, width, height int) *image.NRGBA {
 	dst := image.NewNRGBA(image.Rect(0, 0, width, height))
 	xdraw.CatmullRom.Scale(dst, dst.Bounds(), img, img.Bounds(), xdraw.Src, nil)
 	return dst
-}
-
-func scaleToFit(img image.Image, maxW, maxH int) (*image.NRGBA, int, int) {
-	b := img.Bounds()
-	w, h := fitDimensions(b.Dx(), b.Dy(), maxW, maxH)
-	return scaleTo(img, w, h), w, h
 }
 
 // graphicLayout computes both the terminal cell rectangle and a bounded raster

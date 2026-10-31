@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/dotfrankruan/cattv/internal/fileutil"
 )
@@ -109,16 +108,4 @@ func (s *Store) limit() int {
 		return 32
 	}
 	return s.Limit
-}
-
-// Remove deletes the state file, primarily for tests and explicit resets.
-func (s *Store) Remove() error {
-	if s == nil || s.Path == "" {
-		return nil
-	}
-	err := os.Remove(s.Path)
-	if err == nil || os.IsNotExist(err) {
-		return nil
-	}
-	return err
 }
