@@ -32,7 +32,7 @@ func (a *App) ShowFile(path string) (*Shown, error) {
 	}
 	b := img.Bounds()
 	caption := fmt.Sprintf("%s · %s %d×%d", path, format, b.Dx(), b.Dy())
-	result, err := a.renderImage(img, caption)
+	result, err := a.renderImage(img, caption, "")
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (a *App) Local(ctx context.Context) (*Shown, error) {
 		}
 		b := img.Bounds()
 		caption := fmt.Sprintf("%s · %d×%d", item.Path, b.Dx(), b.Dy())
-		result, err := a.renderImage(img, caption)
+		result, err := a.renderImage(img, caption, "")
 		if err != nil {
 			return nil, err
 		}

@@ -116,6 +116,12 @@ SELECT
     COALESCE(attribution, '') AS attribution,
     COALESCE(photographer_name, '') AS photographer,
     COALESCE(photographer_username, '') AS photographer_username,
+    COALESCE(strftime(photo_submitted_at, '%%Y-%%m-%%d'), '') AS date,
+    COALESCE(photo_location_name, '') AS location_name,
+    COALESCE(photo_location_country, '') AS country,
+    COALESCE(photo_location_city, '') AS city,
+    photo_location_latitude AS latitude,
+    photo_location_longitude AS longitude,
     CAST(COALESCE(quality_score, 0) AS DOUBLE) AS quality_score,
     COALESCE(quality_tier, '') AS quality_tier,
     COALESCE(is_curated_pick, false) AS curated

@@ -265,3 +265,53 @@ func TestSaveRejectsInvalidImageURL(t *testing.T) {
 		t.Fatal("expected URL validation error")
 	}
 }
+
+func TestPhotoDetail(t *testing.T) {
+	p := testPhoto("detail", true)
+	p.Date = "2020-11-30"
+	p.LocationName = "Cape Town, South Africa"
+	if got := p.Detail(); got != "Cape Town, South Africa · 2020-11-30" {
+		t.Fatalf("detail = %q", got)
+	}
+	p.LocationName = ""
+	p.City = "Cape Town"
+	p.Country = "South Africa"
+	if got := p.Place(); got != "Cape Town, South Africa" {
+		t.Fatalf("place = %q", got)
+	}
+	p.City = ""
+	if got := p.Place(); got != "South Africa" {
+		t.Fatalf("place = %q", got)
+	}
+	lat, lon := 37.446719, 25.328862
+	p.Country = ""
+	p.Latitude = &lat
+	p.Longitude = &lon
+	if got := p.Place(); got != "37.4467, 25.3289" {
+		t.Fatalf("coordinate place = %q", got)
+	}
+}
+
+func TestLoadSchemaOneCatalogRemainsReadable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "catalog.jsonl.gz")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gz := gzip.NewWriter(f)
+	_, _ = io.WriteString(gz, `{"kind":"photo","id":"legacy","url_320":"https://example.test/legacy.jpg","curated":true}`+"\n")
+	_, _ = io.WriteString(gz, `{"kind":"meta","schema":1,"records":1,"curated":1}`+"\n")
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	cat, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cat.Meta.Schema != 1 || cat.Photos[0].Detail() != "" {
+		t.Fatalf("meta=%+v detail=%q", cat.Meta, cat.Photos[0].Detail())
+	}
+}

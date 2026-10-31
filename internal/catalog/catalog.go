@@ -20,8 +20,10 @@ import (
 )
 
 const (
-	// SchemaVersion identifies the on-disk catalog format.
-	SchemaVersion = 1
+	// SchemaVersion identifies the on-disk catalog format. Version 2 adds
+	// optional capture location and submission date metadata. Version 1
+	// catalogs remain readable but display no location/date detail.
+	SchemaVersion = 2
 	// MetaKind is the JSONL discriminator for catalog metadata.
 	MetaKind = "meta"
 	// PhotoKind is the JSONL discriminator for a photo record.
@@ -44,23 +46,29 @@ type Meta struct {
 // Photo is the runtime metadata for one remote photograph. Image pixels are
 // always fetched on demand and are never stored in the catalog.
 type Photo struct {
-	Kind                 string  `json:"kind"`
-	ID                   string  `json:"id"`
-	PageURL              string  `json:"page_url,omitempty"`
-	ImageURL             string  `json:"image_url,omitempty"`
-	URL320               string  `json:"url_320,omitempty"`
-	URL640               string  `json:"url_640,omitempty"`
-	URL1280              string  `json:"url_1280,omitempty"`
-	Width                int     `json:"width,omitempty"`
-	Height               int     `json:"height,omitempty"`
-	Orientation          string  `json:"orientation,omitempty"`
-	Description          string  `json:"description,omitempty"`
-	Attribution          string  `json:"attribution,omitempty"`
-	Photographer         string  `json:"photographer,omitempty"`
-	PhotographerUsername string  `json:"photographer_username,omitempty"`
-	QualityScore         float64 `json:"quality_score,omitempty"`
-	QualityTier          string  `json:"quality_tier,omitempty"`
-	Curated              bool    `json:"curated,omitempty"`
+	Kind                 string   `json:"kind"`
+	ID                   string   `json:"id"`
+	PageURL              string   `json:"page_url,omitempty"`
+	ImageURL             string   `json:"image_url,omitempty"`
+	URL320               string   `json:"url_320,omitempty"`
+	URL640               string   `json:"url_640,omitempty"`
+	URL1280              string   `json:"url_1280,omitempty"`
+	Width                int      `json:"width,omitempty"`
+	Height               int      `json:"height,omitempty"`
+	Orientation          string   `json:"orientation,omitempty"`
+	Description          string   `json:"description,omitempty"`
+	Attribution          string   `json:"attribution,omitempty"`
+	Photographer         string   `json:"photographer,omitempty"`
+	PhotographerUsername string   `json:"photographer_username,omitempty"`
+	Date                 string   `json:"date,omitempty"`
+	LocationName         string   `json:"location_name,omitempty"`
+	Country              string   `json:"country,omitempty"`
+	City                 string   `json:"city,omitempty"`
+	Latitude             *float64 `json:"latitude,omitempty"`
+	Longitude            *float64 `json:"longitude,omitempty"`
+	QualityScore         float64  `json:"quality_score,omitempty"`
+	QualityTier          string   `json:"quality_tier,omitempty"`
+	Curated              bool     `json:"curated,omitempty"`
 }
 
 // Catalog is a fully loaded metadata index. Loading a few megabytes of JSONL
@@ -123,8 +131,8 @@ func Load(path string) (*Catalog, error) {
 				firstErr = fmt.Errorf("catalog line %d: %w", line, err)
 				break
 			}
-			if m.Schema != SchemaVersion {
-				firstErr = fmt.Errorf("catalog schema %d is not supported (want %d); re-run cattv init", m.Schema, SchemaVersion)
+			if m.Schema < 1 || m.Schema > SchemaVersion {
+				firstErr = fmt.Errorf("catalog schema %d is not supported (supported: 1-%d); re-run cattv init", m.Schema, SchemaVersion)
 				break
 			}
 			meta = &m
@@ -462,6 +470,42 @@ func (p Photo) derivedURL(targetWidth int) string {
 	q.Set("fm", "jpg")
 	u.RawQuery = q.Encode()
 	return u.String()
+}
+
+// Place returns the most human-friendly location available. Textual names are
+// preferred over raw coordinates. Location and date metadata are optional in
+// both the source dataset and legacy catalogs.
+func (p Photo) Place() string {
+	if place := strings.TrimSpace(p.LocationName); place != "" {
+		return place
+	}
+	city := strings.TrimSpace(p.City)
+	country := strings.TrimSpace(p.Country)
+	switch {
+	case city != "" && country != "":
+		return city + ", " + country
+	case city != "":
+		return city
+	case country != "":
+		return country
+	}
+	if p.Latitude != nil && p.Longitude != nil {
+		return fmt.Sprintf("%.4f, %.4f", *p.Latitude, *p.Longitude)
+	}
+	return ""
+}
+
+// Detail returns optional location and submission-date text for the muted
+// second part of the attribution caption.
+func (p Photo) Detail() string {
+	parts := make([]string, 0, 2)
+	if place := p.Place(); place != "" {
+		parts = append(parts, place)
+	}
+	if date := strings.TrimSpace(p.Date); date != "" {
+		parts = append(parts, date)
+	}
+	return strings.Join(parts, " · ")
 }
 
 // Credit returns an attribution line suitable for display. The supplied

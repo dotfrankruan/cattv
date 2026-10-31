@@ -17,7 +17,7 @@ func TestImportPipelineWithFakeDuckDB(t *testing.T) {
 	duckdb := filepath.Join(dir, "fake-duckdb")
 	script := `#!/bin/sh
 cat <<'EOF'
-{"id":"alpha","page_url":"https://unsplash.com/photos/alpha","url_320":"https://images.example/alpha?w=320","curated":true,"quality_score":81.2,"attribution":"Photo by A"}
+{"id":"alpha","page_url":"https://unsplash.com/photos/alpha","url_320":"https://images.example/alpha?w=320","curated":true,"quality_score":81.2,"attribution":"Photo by A","date":"2020-04-24","location_name":"Cape Town, South Africa"}
 {"id":"beta","page_url":"https://unsplash.com/photos/beta","image_url":"https://images.example/beta","curated":false,"quality_score":40}
 EOF
 `
@@ -46,6 +46,9 @@ EOF
 	}
 	if loaded.Photos[0].Credit() == "" {
 		t.Fatal("import did not preserve attribution")
+	}
+	if got := loaded.Photos[0].Detail(); got != "Cape Town, South Africa · 2020-04-24" {
+		t.Fatalf("import did not preserve location/date: %q", got)
 	}
 }
 
