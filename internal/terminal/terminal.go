@@ -18,13 +18,13 @@ const (
 // Geometry describes the output area. Cell dimensions are expressed in device
 // pixels and are useful for sizing raster images before upload.
 type Geometry struct {
-	Columns    int
-	Rows       int
-	CellWidth  int
-	CellHeight int
-	PixelWidth int
+	Columns     int
+	Rows        int
+	CellWidth   int
+	CellHeight  int
+	PixelWidth  int
 	PixelHeight int
-	TTY        bool
+	TTY         bool
 }
 
 // Detect inspects the output terminal. It is safe to call with a redirected
