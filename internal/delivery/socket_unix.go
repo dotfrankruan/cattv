@@ -166,7 +166,7 @@ func (s *SocketServer) Run(ctx context.Context) (retErr error) {
 func (s *SocketServer) logf(format string, args ...any) {
 	s.logMu.Lock()
 	defer s.logMu.Unlock()
-	fmt.Fprintf(s.Log, "cattv socket: "+format+"\n", args...)
+	fmt.Fprintln(s.Log, "cattv socket: "+textsafe.Terminal(fmt.Sprintf(format, args...)))
 }
 
 func prepareSocketPath(path string) error {

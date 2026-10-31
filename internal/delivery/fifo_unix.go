@@ -15,6 +15,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/dotfrankruan/cattv/internal/textsafe"
 	"golang.org/x/sys/unix"
 )
 
@@ -128,7 +129,7 @@ func (s *FIFOServer) Run(ctx context.Context) (retErr error) {
 }
 
 func (s *FIFOServer) logf(format string, args ...any) {
-	fmt.Fprintf(s.Log, "cattv fifo: "+format+"\n", args...)
+	fmt.Fprintln(s.Log, "cattv fifo: "+textsafe.Terminal(fmt.Sprintf(format, args...)))
 }
 
 func prepareFIFOPath(path string) (os.FileInfo, error) {
