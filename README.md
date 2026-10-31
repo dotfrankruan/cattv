@@ -87,8 +87,8 @@ cattv init
 ```
 
 If `./data/unsplash_cats_clean.parquet` exists, `cattv init` finds it
-automatically. The `data/*.parquet` path is git-ignored so the dataset cannot be
-accidentally committed.
+automatically. Parquet files and the entire `data/` directory are git-ignored
+so the dataset cannot be accidentally committed.
 
 Check your setup at any time:
 
@@ -421,7 +421,8 @@ cattv --renderer ansi --width 60 --height 24
 ```
 
 Never commit `.parquet` files, generated catalogs, or downloaded images. The
-repository's `.gitignore` covers the local dataset and build outputs.
+repository's `.gitignore` covers Parquet files, the `data/` directory, and build
+outputs.
 
 ## Limitations and non-goals
 

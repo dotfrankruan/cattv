@@ -1,5 +1,6 @@
-# Local dataset artifacts (not redistributed)
-/data/*.parquet
+# Never commit the source dataset or extracted Parquet artifacts
+*.parquet
+/data/
 
 # Local smoke-test data
 /.smoke-data/
