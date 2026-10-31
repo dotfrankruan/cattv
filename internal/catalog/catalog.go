@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/frandustry/cattv/internal/fileutil"
+	"github.com/dotfrankruan/cattv/internal/fileutil"
 )
 
 const (
