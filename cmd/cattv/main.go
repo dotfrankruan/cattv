@@ -1,11 +1,17 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/dotfrankruan/cattv/internal/cli"
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr, "cattv: implementation in progress")
-	os.Exit(1)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	code := cli.Run(ctx, os.Args[1:], os.Stdin, os.Stdout, os.Stderr)
+	os.Exit(code)
 }
