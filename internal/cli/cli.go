@@ -120,6 +120,8 @@ func (c *cli) afterConfig(ctx context.Context, args []string) error {
 		return c.runLibrary(ctx, rest)
 	case "doctor":
 		return c.runDoctor(rest)
+	case "fifo":
+		return c.runFIFO(ctx, rest)
 	default:
 		return &usageError{err: fmt.Errorf("unknown command %q", cmd)}
 	}

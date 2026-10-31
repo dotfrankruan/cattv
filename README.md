@@ -19,19 +19,25 @@ Photo by Helena Lopes on Unsplash - https://unsplash.com/photos/uFt1IWGqKYc
 It prefers curated photographs from a local metadata catalog, asks the image
 CDN for a terminal-appropriate resolution, decodes and resizes the image in
 memory, renders it with the best available terminal graphics protocol, and
-releases the image bytes. There is no image cache, no daemon, no account, and
-no telemetry.
+releases the image bytes. There is no image cache, no background daemon, no
+account, and no telemetry.
 
 ## Why CatTV
 
 - **Actually native.** Kitty graphics, iTerm2 inline images, or a true-colour
-  Unicode half-block renderer. No browser, Electron, or terminal-side server.
+  Unicode half-block renderer. No browser, Electron, or background service.
 - **On demand by design.** The default command fetches exactly one image. There
   are no mandatory bulk downloads, prefetches, or persistent image caches.
 - **Local metadata, fast starts.** A compact gzipped JSONL index is built once
   from Parquet. Normal viewing never scans the source dataset.
 - **Curated, not just top-scored.** Random selection is uniform among curated
   picks. CatTV does not repeatedly choose the same maximum-scored photo.
+- **Rich, quiet captions.** Photographer attribution and the source link are
+  always shown by default; when the dataset provides a location and upload date,
+  they appear as muted secondary detail beside the link.
+- **Streamable, experimentally.** `cattv fifo serve` can deliver fresh cats to
+  `cat ~/.cache/cat.fifo`; a framed Unix socket client is available when strict
+  one-response-per-request semantics matter.
 - **Polite networking.** One image per invocation, bounded response size,
   timeouts, cancellation, a few transient-error retries, and no tracking.
 - **Useful offline.** `cattv show <file>` is always offline. `cattv import`
@@ -111,6 +117,9 @@ cattv init [flags]                 Build/refresh the Parquet metadata catalog
 cattv catalog status               Show catalog counts and source metadata
 cattv catalog path                 Print the catalog path
 cattv doctor [flags]               Diagnose setup, terminal, and renderer
+cattv fifo serve [flags]           Experimental FIFO cat delivery server
+cattv fifo client [flags]          Strict one-response Unix socket client
+cattv fifo path [flags]            Print default FIFO/socket paths
 cattv version                      Print version and platform
 ```
 
@@ -132,6 +141,13 @@ cattv local
 
 # Remove one entry by ID or path
 cattv library remove 4f8c02ad9b12e7d1
+
+# Experimental FIFO delivery; default renderer is kitty
+cattv fifo serve
+cat ~/.cache/cat.fifo
+
+# Strict framed alternative for concurrent clients
+cattv fifo client
 ```
 
 ### Display flags
@@ -159,7 +175,7 @@ cattv
   ├─ HTTP GET with 20s budget, retries, 8 MiB cap
   ├─ decode PNG/JPEG/GIF/WebP in memory
   ├─ resize to terminal cell/pixel dimensions
-  ├─ render image; print attribution
+  ├─ render image; print attribution and muted place/date detail
   └─ release image bytes; persist only recent photo IDs
 ```
 
@@ -167,11 +183,21 @@ The only persistent artifacts are the metadata catalog, the optional local
 library index, and a small recent-photo list. Image pixels are never written to
 disk by the default command.
 
-If the selected photo's CDN URL is unavailable or invalid, CatTV tries a
-second supplied size and then up to five other random photos within the same
-network budget. A DNS or transport failure stops further fallback photos and prints an offline
-explanation instead of hammering the network. Context cancellation (Ctrl-C)
-propagates through the request.
+If the selected photo's CDN URL is unavailable or invalid, CatTV tries the
+other supplied sizes and then up to five other random photos within the same
+network budget. A DNS or transport failure stops further fallback photos and
+prints an offline explanation instead of hammering the network. Context
+cancellation (Ctrl-C) propagates through the request.
+
+When the catalog contains optional `photo_submitted_at` and location metadata,
+the attribution line gains muted detail, for example:
+
+```text
+Photo by Jane Doe on Unsplash - https://unsplash.com/photos/...  ·  Cape Town, South Africa · 2020-11-30
+```
+
+The photographer/link portion and the place/date portion are both terminal-safe;
+the latter is dimmed when the output is a TTY. `--no-caption` suppresses both.
 
 ## Rendering
 
@@ -202,6 +228,43 @@ releases may not render true-colour output correctly. Kitty and iTerm2 are
 recommended where available. Multiplexer passthrough is intentionally not
 wrapped by CatTV; the safe default is ANSI inside tmux/screen.
 
+## FIFO cat delivery (experimental)
+
+The experimental delivery server reuses the normal catalog, downloader, and
+renderers:
+
+```console
+cattv fifo serve
+cat ~/.cache/cat.fifo
+```
+
+Each sequential open starts a fresh download only after a reader is present,
+writes one complete rendered response, and closes the write end so the reader
+sees EOF. The FIFO is created with mode `0600`, never opens read-write, and
+refuses to replace a non-FIFO path. Ctrl-C, stale paths, SIGPIPE, network
+failures, and reader disconnects are handled without killing the server. The
+default renderer is Kitty for the initial Ghostty implementation; use
+`--renderer ansi` or `--renderer iterm2` for other terminals.
+
+**FIFOs have no message boundaries.** If multiple `cat` processes read at once,
+the kernel may split one frame between them, give it all to one, or give one
+reader nothing. CatTV cannot detect concurrent readers or make `cat` frame a
+request. The exact guarantee "every successful concurrent `cat` gets one
+complete image" is therefore impossible with a plain FIFO. Sequential use is
+supported; concurrent use is best-effort.
+
+For strict request-response semantics, `cattv fifo serve` also exposes a Unix
+socket:
+
+```console
+cattv fifo client
+```
+
+It uses one HTTP request per connection with an exact `Content-Length`, so
+concurrent clients each receive a complete independent frame or an error. Use
+`--no-socket` to disable it. Custom paths and full limitations are documented in
+[docs/fifo-delivery.md](docs/fifo-delivery.md).
+
 ## Local library
 
 `cattv show <file>` never needs a catalog or network. For a random offline
@@ -228,8 +291,13 @@ local JPEGs.
 
 `cattv init` invokes DuckDB to read metadata from the extracted
 `unsplash_cats_clean.parquet` file. It deduplicates by `photo_id`, preserves
-attribution and URL metadata, and writes the compact runtime catalog. No image
-pixels are downloaded, and the Parquet file is not needed for normal viewing.
+attribution and URL metadata, adds optional capture location and upload date,
+and writes the compact runtime catalog. No image pixels are downloaded, and the
+Parquet file is not needed for normal viewing.
+
+The runtime catalog is currently schema 2. Schema 1 catalogs remain readable,
+but only schema 2 catalogs contain the new location/date fields; rerun
+`cattv init` after upgrading to populate them.
 
 The development extraction contains 22,265 unique cat photos, including 15,215
 curated picks. Those counts are properties of the dataset, not constants in the
@@ -297,7 +365,8 @@ The source Parquet schema inspected during implementation is:
 
 CatTV imports only the fields needed for display and attribution: photo ID and
 URLs, dimensions/orientation, description, photographer/attribution fields,
-quality score/tier, and the curated flag. Optional values are tolerated.
+upload date, location name/country/city/coordinates, quality score/tier, and the
+curated flag. Optional values are tolerated.
 
 The metadata was prepared with heuristic tiering and quality flags. It was not
 visually validated end-to-end, so an occasional false positive is possible.
@@ -357,6 +426,8 @@ Environment variables:
 | `CATTV_RETRIES` | Default retry count |
 | `CATTV_NO_PROBE=1` | Disable active terminal capability probing |
 | `CATTV_CELL_WIDTH`, `CATTV_CELL_HEIGHT` | Override cell pixel dimensions when the terminal does not report them |
+| `CATTV_FIFO` | Default FIFO endpoint for `cattv fifo` |
+| `CATTV_SOCKET` | Default strict Unix socket endpoint |
 
 ## Exit codes
 
@@ -380,6 +451,8 @@ internal/catalog     compact JSONL catalog, random selection, DuckDB import
 internal/fetch       bounded HTTP downloader with retries and cancellation
 internal/render      renderer interface, Kitty, iTerm2, ANSI, image codec/fit
 internal/terminal    TTY geometry, pixel dimensions, active Kitty probe
+internal/delivery    experimental FIFO and strict Unix socket servers
+internal/textsafe    terminal-control sanitization for metadata and paths
 internal/library     local image index and import scanner
 internal/state       recent-photo history
 internal/config      XDG/platform paths and environment overrides
@@ -393,8 +466,9 @@ CLI. Writes use temporary files, `fsync`, and atomic rename. A
 catalog is validated (schema, counts, duplicate IDs, usable URLs) before use.
 
 The chain is deliberately layered: the CLI knows about flags and user guidance;
-the app knows about display policy; the catalog, fetcher, renderer, and library
-packages are independently testable and do not depend on the CLI.
+the app knows about display policy; the catalog, fetcher, renderer, and delivery
+packages are independently testable and do not depend on the CLI. The FIFO
+transport is documented in [docs/fifo-delivery.md](docs/fifo-delivery.md).
 
 ## Development
 
@@ -434,6 +508,9 @@ outputs.
   or a full-screen TUI.
 - Kitty/iTerm2 protocol support inside tmux/screen is left to explicit terminal
   configuration; CatTV's safe default is ANSI.
+- FIFO delivery is experimental and has no per-reader message boundaries; use
+  the Unix socket client for strict concurrent request-response semantics. The
+  server's renderer and geometry are fixed at startup, not negotiated by `cat`.
 - GIF playback is static (first frame), HEIC is not supported, and EXIF
   orientation is not applied locally.
 - Remote images larger than 8 MiB or 60 megapixels are rejected.

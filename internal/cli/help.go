@@ -19,6 +19,9 @@ Usage:
   cattv catalog status              Show catalog statistics
   cattv catalog path                Print the catalog path
   cattv doctor [flags]              Diagnose terminal, renderer, and setup
+  cattv fifo serve [flags]          Experimental FIFO cat delivery server
+  cattv fifo client                 Strict one-response Unix socket client
+  cattv fifo path                   Print default FIFO/socket paths
   cattv version                     Print version information
 
 Setup:
@@ -81,6 +84,8 @@ func (c *cli) printHelpTopic(args []string) {
 		c.printLibraryHelp()
 	case "doctor":
 		c.printDoctorHelp()
+	case "fifo":
+		c.printFIFOHelp()
 	case "version":
 		fmt.Fprintln(c.out, "Usage: cattv version")
 	default:
@@ -186,4 +191,64 @@ automatic renderer choice, and external tool availability. Doctor performs no
 network image download.
 `)
 	c.printDisplayFlags()
+}
+
+func (c *cli) printFIFOHelp() {
+	fmt.Fprint(c.out, `Usage:
+  cattv fifo serve [flags]      Start the experimental FIFO delivery server
+  cattv fifo client [flags]     Request one strict frame over the Unix socket
+  cattv fifo path [flags]       Print resolved FIFO/socket paths
+
+The FIFO interface is experimental. A plain `+"`cat`"+` invocation has no message
+boundary: concurrent readers can share or split one byte stream. Use the Unix
+socket client when exactly one complete response per invocation is required.
+
+Default endpoints (override with flags or environment):
+  ~/.cache/cat.fifo             FIFO (CATTV_FIFO)
+  ~/.cache/cat.sock             strict Unix socket (CATTV_SOCKET)
+`)
+}
+
+func (c *cli) printFIFOServeHelp() {
+	fmt.Fprint(c.out, `Usage: cattv fifo serve [flags]
+
+Start a long-running, user-owned delivery server. It waits for a FIFO reader
+before downloading each image and also exposes a strict one-request-per-response
+Unix socket endpoint by default.
+
+The renderer is explicit and defaults to kitty for the initial Ghostty setup.
+Terminal geometry is captured when the server starts; use --width/--height or
+the terminal's COLUMNS/LINES to tune it for the reader.
+
+Flags:
+  --fifo PATH             FIFO path (default: ~/.cache/cat.fifo)
+  --socket PATH           strict Unix socket path (default: ~/.cache/cat.sock)
+  --no-socket             disable the strict Unix socket endpoint
+  --renderer kitty|iterm2|ansi
+  --width N               maximum image width in cells
+  --height N              maximum image height in cells
+  --no-caption            hide the attribution/location line
+  --timeout 20s           per-request network deadline
+  --retries 2             transient image-server retries
+
+Example:
+  cattv fifo serve
+  cat ~/.cache/cat.fifo
+
+Strict alternative:
+  cattv fifo client
+`)
+}
+
+func (c *cli) printFIFOClientHelp() {
+	fmt.Fprint(c.out, `Usage: cattv fifo client [flags]
+
+Connect to a running `+"`cattv fifo serve`"+` Unix socket and request exactly one
+image. HTTP-style response framing guarantees a complete payload per request,
+including when several clients run concurrently.
+
+Flags:
+  --socket PATH      Unix socket path (default: ~/.cache/cat.sock)
+  --timeout 30s      overall request deadline
+`)
 }
