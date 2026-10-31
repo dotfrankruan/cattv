@@ -157,3 +157,28 @@ func TestParseRetryAfter(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+func TestClientTimeoutIsRetryableNotCallerCancellation(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		time.Sleep(80 * time.Millisecond)
+		w.Header().Set("Content-Type", "image/jpeg")
+		_, _ = w.Write([]byte("late"))
+	}))
+	defer srv.Close()
+
+	c := New(2*time.Second, 2, 1024, "cattv/test")
+	c.HTTP.Timeout = 15 * time.Millisecond
+	c.RetryDelay = time.Millisecond
+	_, err := c.Get(context.Background(), srv.URL)
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	if IsCanceled(err) {
+		t.Fatalf("per-request timeout was misclassified as caller cancellation: %v", err)
+	}
+	if got := calls.Load(); got < 2 {
+		t.Fatalf("calls = %d, want retries after timeout", got)
+	}
+}

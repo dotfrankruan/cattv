@@ -32,7 +32,7 @@ func (a *App) Next(ctx context.Context) (*Shown, error) {
 	}
 
 	st := a.loadState()
-	exclude := st.Exclude()
+	exclude := st.ExcludeIDs(state.RemotePrefix)
 	choices := cat.Candidates(candidates, a.rng, exclude)
 	if len(choices) == 0 {
 		// Very small catalogs can eventually be entirely in the history. There

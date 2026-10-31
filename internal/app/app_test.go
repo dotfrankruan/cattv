@@ -21,7 +21,9 @@ import (
 	"github.com/dotfrankruan/cattv/internal/fetch"
 	"github.com/dotfrankruan/cattv/internal/library"
 	"github.com/dotfrankruan/cattv/internal/render"
+	"github.com/dotfrankruan/cattv/internal/state"
 	"github.com/dotfrankruan/cattv/internal/terminal"
+	"github.com/dotfrankruan/cattv/internal/textsafe"
 )
 
 type fetchFunc func(context.Context, string) ([]byte, error)
@@ -117,6 +119,30 @@ func TestNextFetchesAndAvoidsRepeat(t *testing.T) {
 	// ANSI at 60 columns requests the smallest appropriate 320px variant.
 	if !strings.HasSuffix(fetched[0], "w=320") {
 		t.Fatalf("requested %q, want 320px variant", fetched[0])
+	}
+}
+
+func TestNextExcludesRecentPhotoIDs(t *testing.T) {
+	dir := t.TempDir()
+	catPath := filepath.Join(dir, "catalog.gz")
+	statePath := filepath.Join(dir, "state.json")
+	saveTestCatalog(t, catPath, testPhoto("one", true), testPhoto("two", true))
+	if err := state.NewStore(statePath, 32).MarkSeen(state.RemoteKey("one")); err != nil {
+		t.Fatal(err)
+	}
+	data := samplePNG(t)
+	a, err := New(testOptions(catPath, statePath), fetchFunc(func(context.Context, string) ([]byte, error) {
+		return data, nil
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := a.Next(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != "two" {
+		t.Fatalf("selected %q despite recent history excluding it", got.ID)
 	}
 }
 
@@ -265,6 +291,43 @@ func TestLocalAvoidsRepeat(t *testing.T) {
 	}
 }
 
+func TestLocalExcludesRecentLibraryIDs(t *testing.T) {
+	dir := t.TempDir()
+	pictures := filepath.Join(dir, "pictures")
+	if err := writeImageFile(filepath.Join(pictures, "one.png"), samplePNG(t)); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeImageFile(filepath.Join(pictures, "two.png"), samplePNG(t)); err != nil {
+		t.Fatal(err)
+	}
+	libraryPath := filepath.Join(dir, "library.json")
+	store := library.NewStore(libraryPath)
+	idx, _, err := store.Import([]string{pictures})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(idx.Items) != 2 {
+		t.Fatalf("items = %d", len(idx.Items))
+	}
+	statePath := filepath.Join(dir, "state.json")
+	if err := state.NewStore(statePath, 32).MarkSeen(state.LocalKey(idx.Items[0].ID)); err != nil {
+		t.Fatal(err)
+	}
+	opts := testOptions("", statePath)
+	opts.LibraryPath = libraryPath
+	a, err := New(opts, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := a.Local(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != idx.Items[1].ID {
+		t.Fatalf("selected recent local id %s, want %s", got.ID, idx.Items[1].ID)
+	}
+}
+
 func TestLocalEmptyLibrary(t *testing.T) {
 	dir := t.TempDir()
 	opts := testOptions("", filepath.Join(dir, "state.json"))
@@ -296,7 +359,7 @@ func TestTerminalTooSmall(t *testing.T) {
 }
 
 func TestSanitizeCaption(t *testing.T) {
-	got := sanitizeCaption("Photo by\x1b[31m Evil\nName\t")
+	got := textsafe.Terminal("Photo by\x1b[31m Evil\nName\t")
 	if strings.ContainsRune(got, '\x1b') || strings.ContainsRune(got, '\n') || strings.ContainsRune(got, '\t') {
 		t.Fatalf("unsafe caption: %q", got)
 	}

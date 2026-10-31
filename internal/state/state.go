@@ -1,11 +1,12 @@
 // Package state remembers recently shown photos so consecutive invocations do
-// not repeat one another. It stores identifiers and timestamps only.
+// not repeat one another. It stores namespaced identifiers only.
 package state
 
 import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/dotfrankruan/cattv/internal/fileutil"
 )
@@ -13,8 +14,18 @@ import (
 // Version is the state file schema.
 const Version = 1
 
+const stateKind = "cattv-state"
+
+const (
+	// RemotePrefix namespaces remote photo ids in the history.
+	RemotePrefix = "remote:"
+	// LocalPrefix namespaces local library ids in the history.
+	LocalPrefix = "local:"
+)
+
 // State is the persisted display history.
 type State struct {
+	Kind    string   `json:"kind"`
 	Version int      `json:"version"`
 	Recent  []string `json:"recent,omitempty"`
 }
@@ -37,22 +48,26 @@ func NewStore(path string, limit int) *Store {
 // but never blocks viewing.
 func (s *Store) Load() (State, error) {
 	if s == nil || s.Path == "" {
-		return State{Version: Version}, nil
+		return State{Kind: stateKind, Version: Version}, nil
 	}
 	data, err := fileutil.ReadFile(s.Path, true)
 	if err != nil {
-		return State{Version: Version}, err
+		return State{Kind: stateKind, Version: Version}, err
 	}
 	if len(data) == 0 {
-		return State{Version: Version}, nil
+		return State{Kind: stateKind, Version: Version}, nil
 	}
 	var st State
 	if err := json.Unmarshal(data, &st); err != nil {
-		return State{Version: Version}, fmt.Errorf("parse state file: %w", err)
+		return State{Kind: stateKind, Version: Version}, fmt.Errorf("parse state file: %w", err)
+	}
+	if st.Kind != "" && st.Kind != stateKind {
+		return State{Kind: stateKind, Version: Version}, fmt.Errorf("file is %q, not CatTV display history", st.Kind)
 	}
 	if st.Version != Version {
-		return State{Version: Version}, fmt.Errorf("state schema %d is not supported", st.Version)
+		return State{Kind: stateKind, Version: Version}, fmt.Errorf("state schema %d is not supported", st.Version)
 	}
+	st.Kind = stateKind
 	if len(st.Recent) > s.limit() {
 		st.Recent = st.Recent[:s.limit()]
 	}
@@ -66,8 +81,10 @@ func (s *Store) MarkSeen(key string) error {
 	}
 	st, err := s.Load()
 	if err != nil {
-		// A damaged history should not prevent showing a cat; start fresh.
-		st = State{Version: Version}
+		// Never overwrite an unreadable file: CATTV_STATE may be misconfigured
+		// to point at another CatTV data file or user data. Viewing still
+		// succeeds; only recency tracking is skipped for this request.
+		return fmt.Errorf("refusing to overwrite unreadable display history: %w", err)
 	}
 	recent := make([]string, 0, s.limit())
 	recent = append(recent, key)
@@ -76,6 +93,8 @@ func (s *Store) MarkSeen(key string) error {
 			recent = append(recent, old)
 		}
 	}
+	st.Kind = stateKind
+	st.Version = Version
 	st.Recent = recent
 	data, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {
@@ -88,20 +107,24 @@ func (s *Store) MarkSeen(key string) error {
 	})
 }
 
-// Exclude converts recent keys into a lookup map.
-func (st State) Exclude() map[string]bool {
+// ExcludeIDs returns the bare ids for history entries with the given prefix.
+// Catalog and library selectors operate on bare ids, so callers must not pass
+// the namespaced history keys directly to them.
+func (st State) ExcludeIDs(prefix string) map[string]bool {
 	out := make(map[string]bool, len(st.Recent))
 	for _, key := range st.Recent {
-		out[key] = true
+		if strings.HasPrefix(key, prefix) {
+			out[strings.TrimPrefix(key, prefix)] = true
+		}
 	}
 	return out
 }
 
 // RemoteKey namespaces a remote photo id in the history.
-func RemoteKey(id string) string { return "remote:" + id }
+func RemoteKey(id string) string { return RemotePrefix + id }
 
 // LocalKey namespaces a local library id in the history.
-func LocalKey(id string) string { return "local:" + id }
+func LocalKey(id string) string { return LocalPrefix + id }
 
 func (s *Store) limit() int {
 	if s.Limit <= 0 {

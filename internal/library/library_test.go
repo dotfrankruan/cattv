@@ -131,3 +131,13 @@ func TestImportMissingPathWarns(t *testing.T) {
 		t.Fatalf("report = %+v", report)
 	}
 }
+
+func TestLibraryRejectsOtherCatTVFileKind(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "library.json")
+	if err := os.WriteFile(path, []byte(`{"kind":"cattv-state","version":1,"recent":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewStore(path).Load(); err == nil {
+		t.Fatal("expected kind mismatch error")
+	}
+}

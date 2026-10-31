@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/dotfrankruan/cattv/internal/library"
+	"github.com/dotfrankruan/cattv/internal/textsafe"
 )
 
 func (c *cli) runImport(ctx context.Context, args []string) error {
@@ -31,7 +32,7 @@ func (c *cli) runImport(ctx context.Context, args []string) error {
 		return err
 	}
 	for _, warning := range report.Warnings {
-		fmt.Fprintf(c.errOut, "cattv: warning: %s\n", warning)
+		fmt.Fprintf(c.errOut, "cattv: warning: %s\n", textsafe.Terminal(warning))
 	}
 	if report.Added+report.Updated == 0 {
 		return &commandError{
@@ -41,7 +42,7 @@ func (c *cli) runImport(ctx context.Context, args []string) error {
 	}
 	fmt.Fprintf(c.out, "Imported %d new image(s); refreshed %d; skipped %d.\n",
 		report.Added, report.Updated, report.Skipped)
-	fmt.Fprintf(c.out, "Local library: %s (%d image(s))\n", c.cfg.LibraryPath, len(idx.Items))
+	fmt.Fprintf(c.out, "Local library: %s (%d image(s))\n", textsafe.Terminal(c.cfg.LibraryPath), len(idx.Items))
 	if len(idx.Items) > 0 {
 		fmt.Fprintln(c.out, "Run `cattv local` to view a local image without network access.")
 	}
@@ -96,12 +97,12 @@ func (c *cli) runLibraryList(args []string) error {
 	fmt.Fprintln(tw, "ID\tFORMAT\tSIZE\tDIMENSIONS\tPATH")
 	for _, item := range idx.Items {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%d×%d\t%s\n",
-			item.ID, strings.ToUpper(item.Format), humanBytes(item.Bytes), item.Width, item.Height, item.Path)
+			item.ID, strings.ToUpper(item.Format), humanBytes(item.Bytes), item.Width, item.Height, textsafe.Terminal(item.Path))
 	}
 	if err := tw.Flush(); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.out, "\n%d image(s) at %s\n", len(idx.Items), c.cfg.LibraryPath)
+	fmt.Fprintf(c.out, "\n%d image(s) at %s\n", len(idx.Items), textsafe.Terminal(c.cfg.LibraryPath))
 	return nil
 }
 
@@ -125,7 +126,7 @@ func (c *cli) runLibraryRemove(args []string) error {
 		return err
 	}
 	if removed == 0 {
-		return &commandError{code: exitRuntime, err: fmt.Errorf("no library item matched %q", positional[0])}
+		return &commandError{code: exitRuntime, err: fmt.Errorf("no library item matched %q", textsafe.Terminal(positional[0]))}
 	}
 	fmt.Fprintf(c.out, "Removed %d item(s); %d remain.\n", removed, len(idx.Items))
 	return nil

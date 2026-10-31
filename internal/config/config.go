@@ -41,7 +41,36 @@ func Load() (Config, error) {
 	override(&cfg.CatalogPath, "CATTV_CATALOG")
 	override(&cfg.LibraryPath, "CATTV_LIBRARY")
 	override(&cfg.StatePath, "CATTV_STATE")
+	if err := ensureDistinct(
+		namedPath{"catalog", cfg.CatalogPath},
+		namedPath{"library", cfg.LibraryPath},
+		namedPath{"state", cfg.StatePath},
+	); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
+}
+
+type namedPath struct {
+	label string
+	path  string
+}
+
+// ensureDistinct prevents a misconfigured override from making two writers
+// share one file. Catalog, library, and history formats are not interchangeable.
+func ensureDistinct(paths ...namedPath) error {
+	seen := make(map[string]string, len(paths))
+	for _, p := range paths {
+		key, err := filepath.Abs(p.path)
+		if err != nil {
+			key = filepath.Clean(p.path)
+		}
+		if prior, ok := seen[key]; ok {
+			return fmt.Errorf("%s path and %s path are the same file: %s", prior, p.label, key)
+		}
+		seen[key] = p.label
+	}
+	return nil
 }
 
 func override(dst *string, env string) {

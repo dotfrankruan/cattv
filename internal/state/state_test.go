@@ -32,26 +32,40 @@ func TestMarkSeenMaintainsBoundedHistory(t *testing.T) {
 	if info.Mode().Perm() != 0o600 {
 		t.Fatalf("permissions = %o", info.Mode().Perm())
 	}
-	if !st.Exclude()[RemoteKey("two")] {
-		t.Fatal("exclude map missing key")
+	excluded := st.ExcludeIDs(RemotePrefix)
+	if !excluded["two"] || excluded["remote:two"] {
+		t.Fatalf("exclude ids = %#v", excluded)
+	}
+	if local := st.ExcludeIDs(LocalPrefix); len(local) != 0 {
+		t.Fatalf("local exclude ids = %#v", local)
 	}
 }
 
-func TestMarkSeenRecoversFromCorruptState(t *testing.T) {
+func TestMarkSeenRefusesToOverwriteCorruptState(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	if err := os.WriteFile(path, []byte("{broken"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	store := NewStore(path, 4)
-	if err := store.MarkSeen(LocalKey("cat")); err != nil {
-		t.Fatal(err)
+	if err := store.MarkSeen(LocalKey("cat")); err == nil {
+		t.Fatal("expected refusal to overwrite corrupt state")
 	}
-	st, err := store.Load()
+	got, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(st.Recent) != 1 || st.Recent[0] != LocalKey("cat") {
-		t.Fatalf("recent = %#v", st.Recent)
+	if string(got) != "{broken" {
+		t.Fatalf("corrupt state was overwritten: %q", got)
+	}
+}
+
+func TestStateRejectsOtherCatTVFileKind(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(path, []byte(`{"kind":"cattv-library","version":1,"items":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewStore(path, 4).Load(); err == nil {
+		t.Fatal("expected kind mismatch error")
 	}
 }
 
@@ -60,7 +74,7 @@ func TestLoadMissingState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Version != Version || len(st.Recent) != 0 {
+	if st.Version != Version || st.Kind != stateKind || len(st.Recent) != 0 {
 		t.Fatalf("state = %+v", st)
 	}
 }

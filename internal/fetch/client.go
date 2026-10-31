@@ -63,13 +63,16 @@ func IsNetwork(err error) bool {
 	return errors.As(err, &e) && e.Kind == KindNetwork
 }
 
-// IsCanceled reports whether the caller's context ended.
+// IsCanceled reports whether the caller's context ended. It deliberately does
+// not infer cancellation from wrapped net/http deadline errors: a per-request
+// client timeout is a retryable network failure, while only the caller's
+// context ending should abort retries.
 func IsCanceled(err error) bool {
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
 	var e *Error
-	return errors.As(err, &e) && e.Kind == KindCanceled
+	if errors.As(err, &e) {
+		return e.Kind == KindCanceled
+	}
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 // HTTPStatus returns an HTTP status code for an Error, if any.

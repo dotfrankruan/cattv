@@ -68,3 +68,19 @@ func TestImportReportsDuckDBFailure(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestImportRefusesToOverwriteParquet(t *testing.T) {
+	dir := t.TempDir()
+	parquet := filepath.Join(dir, "cats.parquet")
+	if err := os.WriteFile(parquet, []byte("dataset"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Import(context.Background(), parquet, ImportOptions{ParquetPath: parquet})
+	if err == nil || !strings.Contains(err.Error(), "must not") {
+		t.Fatalf("error = %v", err)
+	}
+	got, readErr := os.ReadFile(parquet)
+	if readErr != nil || string(got) != "dataset" {
+		t.Fatalf("dataset was modified: %q, %v", got, readErr)
+	}
+}

@@ -61,3 +61,15 @@ func TestLoadDefaultsInsideDataDir(t *testing.T) {
 		t.Fatalf("LibraryPath = %q", cfg.LibraryPath)
 	}
 }
+
+func TestLoadRejectsSharedDataPaths(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CATTV_DATA_DIR", dir)
+	shared := filepath.Join(dir, "shared.json")
+	t.Setenv("CATTV_CATALOG", shared)
+	t.Setenv("CATTV_LIBRARY", shared)
+	t.Setenv("CATTV_STATE", "")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected duplicate data path error")
+	}
+}

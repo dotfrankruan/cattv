@@ -152,8 +152,28 @@ func TestBestImageURLUsesBoundedDerivedURL(t *testing.T) {
 func TestCandidateImageURLsFallbackChain(t *testing.T) {
 	p := testPhoto("one", true)
 	got := p.CandidateImageURLs(1000)
-	if len(got) != 2 || got[0] != p.URL1280 || got[1] != p.URL640 {
+	want := []string{p.URL1280, p.URL640, p.URL320}
+	if len(got) != len(want) {
 		t.Fatalf("got %#v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("fallback[%d] = %q, want %q (all: %#v)", i, got[i], want[i], got)
+		}
+	}
+}
+
+func TestCandidateImageURLsIncludesLargerVariant(t *testing.T) {
+	p := testPhoto("one", true)
+	got := p.CandidateImageURLs(320)
+	want := []string{p.URL320, p.URL640, p.URL1280}
+	if len(got) != len(want) {
+		t.Fatalf("got %#v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("fallback[%d] = %q, want %q (all: %#v)", i, got[i], want[i], got)
+		}
 	}
 }
 
@@ -213,5 +233,35 @@ func TestMetaCreatedAtPreserved(t *testing.T) {
 	}
 	if !meta.CreatedAt.Equal(want) {
 		t.Fatalf("created at = %v", meta.CreatedAt)
+	}
+}
+
+func TestLoadRejectsInvalidImageURL(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "catalog.jsonl.gz")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gz := gzip.NewWriter(f)
+	_, _ = io.WriteString(gz, `{"kind":"photo","id":"bad","url_320":"not-a-url"}`+"\n")
+	_, _ = io.WriteString(gz, `{"kind":"meta","schema":1,"records":1,"curated":0}`+"\n")
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "invalid") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestSaveRejectsInvalidImageURL(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "catalog.jsonl.gz")
+	bad := testPhoto("bad", true)
+	bad.URL320 = "file:///tmp/cat.png"
+	if _, err := Save(path, Meta{}, []Photo{bad}); err == nil {
+		t.Fatal("expected URL validation error")
 	}
 }

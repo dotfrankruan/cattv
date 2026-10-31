@@ -12,12 +12,12 @@ import (
 	"os"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/dotfrankruan/cattv/internal/library"
 	"github.com/dotfrankruan/cattv/internal/render"
 	"github.com/dotfrankruan/cattv/internal/state"
 	"github.com/dotfrankruan/cattv/internal/terminal"
+	"github.com/dotfrankruan/cattv/internal/textsafe"
 )
 
 // Sentinel categories make CLI guidance precise without coupling the app to
@@ -153,7 +153,7 @@ func (a *App) renderImage(img image.Image, caption string) (render.Result, error
 		return render.Result{}, fmt.Errorf("render image: %w", err)
 	}
 	if !a.opts.NoCaption && strings.TrimSpace(caption) != "" {
-		caption = sanitizeCaption(caption)
+		caption = textsafe.Terminal(caption)
 		if a.opts.Color {
 			if _, err := fmt.Fprintf(a.opts.Out, "\x1b[2m%s\x1b[0m\n", caption); err != nil {
 				return result, err
@@ -201,19 +201,6 @@ func (a *App) markSeen(key string) {
 
 func (a *App) libraryStore() *library.Store {
 	return library.NewStore(a.opts.LibraryPath)
-}
-
-func sanitizeCaption(s string) string {
-	return strings.Map(func(r rune) rune {
-		switch r {
-		case '\n', '\r', '\t':
-			return ' '
-		}
-		if unicode.IsControl(r) {
-			return -1
-		}
-		return r
-	}, s)
 }
 
 func clampInt(v, min, max int) int {

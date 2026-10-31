@@ -135,12 +135,8 @@ func Load(path string) (*Catalog, error) {
 				break
 			}
 			p.Kind = PhotoKind
-			if strings.TrimSpace(p.ID) == "" {
-				firstErr = fmt.Errorf("catalog line %d: photo has no id", line)
-				break
-			}
-			if !p.hasImageURL() {
-				firstErr = fmt.Errorf("catalog line %d: photo %s has no image URL", line, p.ID)
+			if err := p.validate(); err != nil {
+				firstErr = fmt.Errorf("catalog line %d: %w", line, err)
 				break
 			}
 			if _, ok := seen[p.ID]; ok {
@@ -199,11 +195,8 @@ func Save(path string, meta Meta, photos []Photo) (Meta, error) {
 	for i := range photos {
 		p := &photos[i]
 		p.Kind = PhotoKind
-		if strings.TrimSpace(p.ID) == "" {
-			return Meta{}, fmt.Errorf("photo %d has no id", i+1)
-		}
-		if !p.hasImageURL() {
-			return Meta{}, fmt.Errorf("photo %s has no image URL", p.ID)
+		if err := p.validate(); err != nil {
+			return Meta{}, fmt.Errorf("photo %d: %w", i+1, err)
 		}
 		if _, ok := seen[p.ID]; ok {
 			return Meta{}, fmt.Errorf("duplicate photo id %s", p.ID)
@@ -342,8 +335,9 @@ func (p Photo) BestImageURL(targetWidth int) string {
 	return variants[len(variants)-1].URL
 }
 
-// CandidateImageURLs returns a small fallback chain beginning with the best
-// supplied size. Duplicate URLs are removed.
+// CandidateImageURLs returns all distinct supplied sizes in order of
+// suitability, followed by the bounded base-URL variant. If the best size is
+// unavailable, another size of the same photograph may still work.
 func (p Photo) CandidateImageURLs(targetWidth int) []string {
 	variants := p.Variants()
 	if len(variants) == 0 {
@@ -355,25 +349,45 @@ func (p Photo) CandidateImageURLs(targetWidth int) []string {
 	if targetWidth <= 0 {
 		targetWidth = 1280
 	}
-	seen := make(map[string]bool, len(variants))
-	out := make([]string, 0, 2)
+	seen := make(map[string]bool, len(variants)+1)
+	out := make([]string, 0, len(variants)+1)
 	appendURL := func(u string) {
-		if u != "" && !seen[u] && len(out) < 2 {
+		if u != "" && !seen[u] && len(out) < 4 {
 			seen[u] = true
 			out = append(out, u)
 		}
 	}
-	appendURL(p.BestImageURL(targetWidth))
-	for i := len(variants) - 1; i >= 0; i-- {
-		if variants[i].Width < targetWidth {
-			appendURL(variants[i].URL)
-			break
+	best := p.BestImageURL(targetWidth)
+	appendURL(best)
+
+	rest := make([]URLVariant, 0, len(variants))
+	for _, v := range variants {
+		if v.URL != best {
+			rest = append(rest, v)
 		}
+	}
+	sort.SliceStable(rest, func(i, j int) bool {
+		di := absInt(rest[i].Width - targetWidth)
+		dj := absInt(rest[j].Width - targetWidth)
+		if di == dj {
+			return rest[i].Width > rest[j].Width
+		}
+		return di < dj
+	})
+	for _, v := range rest {
+		appendURL(v.URL)
 	}
 	if p.ImageURL != "" {
 		appendURL(p.derivedURL(targetWidth))
 	}
 	return out
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 // Variants returns non-empty supplied URL variants ordered by width.
@@ -393,8 +407,38 @@ func (p Photo) Variants() []URLVariant {
 	return filtered
 }
 
-func (p Photo) hasImageURL() bool {
-	return len(p.Variants()) > 0 || strings.TrimSpace(p.ImageURL) != ""
+func (p Photo) validate() error {
+	if strings.TrimSpace(p.ID) == "" {
+		return errors.New("photo has no id")
+	}
+	urls := []struct {
+		label string
+		value string
+	}{
+		{"base", p.ImageURL},
+		{"320", p.URL320},
+		{"640", p.URL640},
+		{"1280", p.URL1280},
+	}
+	usable := 0
+	for _, candidate := range urls {
+		raw := strings.TrimSpace(candidate.value)
+		if raw == "" {
+			continue
+		}
+		if len(raw) > 16*1024 {
+			return fmt.Errorf("photo %s has an oversized %s URL", p.ID, candidate.label)
+		}
+		u, err := url.Parse(raw)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return fmt.Errorf("photo %s has an invalid %s URL", p.ID, candidate.label)
+		}
+		usable++
+	}
+	if usable == 0 {
+		return fmt.Errorf("photo %s has no image URL", p.ID)
+	}
+	return nil
 }
 
 func (p Photo) derivedURL(targetWidth int) string {

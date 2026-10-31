@@ -64,7 +64,7 @@ func (a *App) Local(ctx context.Context) (*Shown, error) {
 	}
 
 	st := a.loadState()
-	choices := idx.Candidates(10, a.rng, st.Exclude())
+	choices := idx.Candidates(10, a.rng, st.ExcludeIDs(state.LocalPrefix))
 	if len(choices) == 0 {
 		choices = idx.Candidates(10, a.rng, nil)
 	}

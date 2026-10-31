@@ -41,7 +41,7 @@ no telemetry.
 ## Requirements
 
 - Go 1.26 or newer to build.
-- DuckDB CLI **only** for `cattv init`. DuckDB is not used at runtime.
+- DuckDB CLI 1.4+ **only** for `cattv init`. DuckDB is not used at runtime.
 - A network connection for the default `cattv` command.
 - A terminal. Kitty/Ghostty/WezTerm/iTerm2 unlock native image protocols;
   everything else gets the portable renderer.

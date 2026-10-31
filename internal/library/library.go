@@ -29,6 +29,8 @@ import (
 // Version is the local library index schema.
 const Version = 1
 
+const indexKind = "cattv-library"
+
 var supportedExtensions = map[string]bool{
 	".jpg": true, ".jpeg": true, ".jfif": true,
 	".png": true, ".gif": true, ".webp": true,
@@ -47,6 +49,7 @@ type Item struct {
 
 // Index is the serialized local library.
 type Index struct {
+	Kind    string `json:"kind"`
 	Version int    `json:"version"`
 	Items   []Item `json:"items"`
 }
@@ -72,22 +75,26 @@ func NewStore(path string) *Store {
 // Load reads the index. A missing file yields an empty library.
 func (s *Store) Load() (*Index, error) {
 	if s == nil || s.Path == "" {
-		return &Index{Version: Version}, nil
+		return &Index{Kind: indexKind, Version: Version}, nil
 	}
 	data, err := fileutil.ReadFile(s.Path, true)
 	if err != nil {
 		return nil, fmt.Errorf("read local library: %w", err)
 	}
 	if len(data) == 0 {
-		return &Index{Version: Version}, nil
+		return &Index{Kind: indexKind, Version: Version}, nil
 	}
 	var idx Index
 	if err := json.Unmarshal(data, &idx); err != nil {
 		return nil, fmt.Errorf("parse local library: %w", err)
 	}
+	if idx.Kind != "" && idx.Kind != indexKind {
+		return nil, fmt.Errorf("file is %q, not a CatTV local library", idx.Kind)
+	}
 	if idx.Version != Version {
 		return nil, fmt.Errorf("local library schema %d is not supported", idx.Version)
 	}
+	idx.Kind = indexKind
 	seen := make(map[string]bool, len(idx.Items))
 	for i := range idx.Items {
 		item := &idx.Items[i]
@@ -110,6 +117,7 @@ func (s *Store) Save(idx *Index) error {
 	if idx == nil {
 		return errors.New("nil local library")
 	}
+	idx.Kind = indexKind
 	idx.Version = Version
 	sort.SliceStable(idx.Items, func(i, j int) bool { return idx.Items[i].Path < idx.Items[j].Path })
 	data, err := json.MarshalIndent(idx, "", "  ")
@@ -308,7 +316,7 @@ func (s *Store) Remove(identifier string) (*Index, int, error) {
 
 // Clear removes every item from the local library.
 func (s *Store) Clear() error {
-	return s.Save(&Index{Version: Version})
+	return s.Save(&Index{Kind: indexKind, Version: Version})
 }
 
 // Candidates returns up to n random items that are not in exclude.

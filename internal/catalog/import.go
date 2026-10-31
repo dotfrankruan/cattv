@@ -40,6 +40,16 @@ func Import(ctx context.Context, catalogPath string, opts ImportOptions) (Meta, 
 	if info.IsDir() {
 		return Meta{}, fmt.Errorf("dataset path is a directory, expected a Parquet file: %s", parquet)
 	}
+	catalogAbs, err := filepath.Abs(catalogPath)
+	if err != nil {
+		return Meta{}, fmt.Errorf("resolve catalog path: %w", err)
+	}
+	if catalogAbs == parquet {
+		return Meta{}, errors.New("catalog path must not be the Parquet dataset path")
+	}
+	if catalogInfo, statErr := os.Stat(catalogAbs); statErr == nil && os.SameFile(catalogInfo, info) {
+		return Meta{}, errors.New("catalog path must not overwrite the Parquet dataset")
+	}
 
 	duckdb, err := findDuckDB(opts.DuckDBPath)
 	if err != nil {
@@ -134,9 +144,11 @@ func sqlLiteral(s string) (string, error) {
 }
 
 func runDuckDB(ctx context.Context, duckdb, query string) ([]Photo, error) {
+	// Explicit output mode disables DuckDB's newer agent-oriented formatting
+	// without requiring the 2.0-only `-no-agent` flag. This keeps the importer
+	// compatible with the DuckDB 1.4 LTS CLI.
 	cmd := exec.CommandContext(ctx, duckdb,
 		"-no-init",
-		"-no-agent",
 		"-jsonlines",
 		"-noheader",
 		"-c", query,
@@ -197,8 +209,8 @@ func parseDuckDBPhotos(r io.Reader) ([]Photo, error) {
 		if p.ID == "" {
 			return nil, errors.New("dataset returned a photo with an empty id")
 		}
-		if !p.hasImageURL() {
-			return nil, fmt.Errorf("photo %s has no usable image URL", p.ID)
+		if err := p.validate(); err != nil {
+			return nil, err
 		}
 		if seen[p.ID] {
 			return nil, fmt.Errorf("dataset returned duplicate photo id %s", p.ID)
