@@ -150,23 +150,32 @@ func TestFIFOFailureDoesNotStopServer(t *testing.T) {
 	h.stop(t)
 }
 
-// readFIFOFD reads a non-blocking FIFO fd with poll so the test does not depend
-// on Go's os.File poller state when multiple reader fds share a FIFO.
-func readFIFOFD(fd int) ([]byte, error) {
+// readFIFOFD drains a non-blocking FIFO fd until the frame's byte budget has
+// been observed by all readers. macOS does not reliably wake every blocked
+// reader when a writer closes with multiple readers attached, which is itself
+// part of the FIFO concurrency limitation. The test therefore bounds its wait
+// by the known payload size and a deadline instead of waiting forever for EOF.
+func readFIFOFD(fd int, total *atomic.Int64, limit int64, deadline time.Time) ([]byte, error) {
 	var out []byte
 	buf := make([]byte, 32*1024)
 	for {
 		n, err := unix.Read(fd, buf)
 		if n > 0 {
 			out = append(out, buf[:n]...)
+			if total.Add(int64(n)) >= limit {
+				return out, nil
+			}
 		}
 		if err != nil {
 			if errors.Is(err, unix.EINTR) {
 				continue
 			}
 			if errors.Is(err, unix.EAGAIN) {
+				if time.Now().After(deadline) {
+					return out, errors.New("timed out before the complete FIFO frame was observed")
+				}
 				pfds := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN | unix.POLLHUP}}
-				if _, pollErr := unix.Poll(pfds, -1); pollErr != nil && !errors.Is(pollErr, unix.EINTR) {
+				if _, pollErr := unix.Poll(pfds, 20); pollErr != nil && !errors.Is(pollErr, unix.EINTR) {
 					return out, pollErr
 				}
 				continue
@@ -220,13 +229,15 @@ func TestFIFOConcurrentReadersShareOneUnframedStream(t *testing.T) {
 	close(release)
 
 	var wg sync.WaitGroup
+	var totalRead atomic.Int64
 	results := make([][]byte, 2)
 	errs := make([]error, 2)
+	deadline := time.Now().Add(3 * time.Second)
 	for i, fd := range []int{readerA, readerB} {
 		wg.Add(1)
 		go func(i, fd int) {
 			defer wg.Done()
-			results[i], errs[i] = readFIFOFD(fd)
+			results[i], errs[i] = readFIFOFD(fd, &totalRead, int64(len(payload)), deadline)
 		}(i, fd)
 	}
 	wg.Wait()
@@ -236,8 +247,8 @@ func TestFIFOConcurrentReadersShareOneUnframedStream(t *testing.T) {
 		}
 	}
 	total := len(results[0]) + len(results[1])
-	if total != len(payload) {
-		t.Fatalf("readers consumed %d bytes total, want one frame of %d; this would mean duplication", total, len(payload))
+	if int64(total) != totalRead.Load() || total != len(payload) {
+		t.Fatalf("readers consumed %d/%d bytes total, want one frame of %d", total, totalRead.Load(), len(payload))
 	}
 	if (len(results[0]) == len(payload)) && (len(results[1]) == len(payload)) {
 		t.Fatal("both readers received a complete frame despite the shared FIFO stream")
