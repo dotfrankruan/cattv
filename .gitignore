@@ -1,0 +1,10 @@
+# Local dataset artifacts (not redistributed)
+/data/*.parquet
+
+# Build and test output
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+.DS_Store
