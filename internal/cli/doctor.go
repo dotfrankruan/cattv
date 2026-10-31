@@ -86,7 +86,7 @@ func (c *cli) runDoctor(args []string) error {
 		tty = "yes"
 	}
 	tw := tabwriter.NewWriter(c.out, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(tw, "CatTV:\t%s\n", version.Version)
+	fmt.Fprintf(tw, "CatTV:\t%s\n", version.Current())
 	fmt.Fprintf(tw, "Platform:\t%s/%s (%s)\n", runtime.GOOS, runtime.GOARCH, runtime.Version())
 	fmt.Fprintf(tw, "Data directory:\t%s\n", c.cfg.DataDir)
 	fmt.Fprintf(tw, "Catalog:\t%s\n", catalogStatus)

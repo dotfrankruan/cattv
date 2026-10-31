@@ -6,8 +6,9 @@
 [![Go](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-CatTV is a fast, terminal-native cat image viewer written in Go. One command,
-one random cat, one on-demand image download:
+CatTV is a fast, terminal-native cat image viewer written in Go, part of the
+FRANDUSTRY CAT ecosystem. One command, one random cat, one on-demand image
+download:
 
 ```console
 $ cattv
@@ -320,7 +321,8 @@ not visual charm, which is why CatTV does not sort by it.
 - No telemetry, analytics, accounts, cookies, or background services.
 - The default command contacts only the image CDN URL for the selected photo.
   It does not contact Unsplash APIs, an analytics endpoint, or a CatTV server.
-- The HTTP `User-Agent` is `cattv/<version>`, with no user identifiers.
+- The HTTP `User-Agent` is `cattv/<version> (+https://github.com/dotfrankruan/cattv)`,
+  with no user identifiers.
 - No prefetching, bulk downloads, prefetch queue, or persistent image cache.
 - Local library and catalog operations make no network requests.
 - `cattv doctor` does not test connectivity or download images.

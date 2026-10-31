@@ -84,6 +84,9 @@ func New(opts Options, fetcher Fetcher) (*App, error) {
 	if opts.Renderer == "" || opts.Renderer == render.KindAuto {
 		return nil, errors.New("a concrete renderer must be selected before display")
 	}
+	if _, err := render.New(opts.Renderer); err != nil {
+		return nil, err
+	}
 	if opts.Out == nil {
 		opts.Out = os.Stdout
 	}
@@ -121,8 +124,12 @@ func (a *App) drawable() (render.Env, error) {
 	}
 	rows -= reserved
 	if cols < minColumns || rows < minRows {
-		return render.Env{}, fmt.Errorf("%w: need at least %dx%d cells; have %dx%d",
-			ErrTerminalSmall, minColumns, minRows+reserved, cols, a.opts.Geometry.Rows)
+		haveRows := rows
+		if haveRows < 0 {
+			haveRows = 0
+		}
+		return render.Env{}, fmt.Errorf("%w: need at least %dx%d drawable cells; have %dx%d after reserving caption space",
+			ErrTerminalSmall, minColumns, minRows, cols, haveRows)
 	}
 	return render.Env{
 		Columns:    cols,

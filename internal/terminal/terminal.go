@@ -61,12 +61,10 @@ func Detect(out *os.File) Geometry {
 	}
 	g.CellWidth = envInt("CATTV_CELL_WIDTH", g.CellWidth, 1, 256)
 	g.CellHeight = envInt("CATTV_CELL_HEIGHT", g.CellHeight, 1, 256)
-	if g.PixelWidth <= 0 {
-		g.PixelWidth = g.Columns * g.CellWidth
-	}
-	if g.PixelHeight <= 0 {
-		g.PixelHeight = g.Rows * g.CellHeight
-	}
+	// Report the effective pixel geometry after cell overrides; renderers use
+	// cell size rather than a potentially stale raw ioctl value.
+	g.PixelWidth = g.Columns * g.CellWidth
+	g.PixelHeight = g.Rows * g.CellHeight
 	return g
 }
 

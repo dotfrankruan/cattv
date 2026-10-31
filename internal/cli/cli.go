@@ -82,7 +82,7 @@ func (c *cli) run(ctx context.Context, args []string) error {
 		c.printHelp()
 		return nil
 	case "version", "--version", "-version":
-		fmt.Fprintf(c.out, "cattv %s (%s/%s)\n", version.Version, runtime.GOOS, runtime.GOARCH)
+		fmt.Fprintf(c.out, "cattv %s (%s/%s)\n", version.Current(), runtime.GOOS, runtime.GOARCH)
 		return nil
 	}
 	return c.afterConfig(ctx, args)

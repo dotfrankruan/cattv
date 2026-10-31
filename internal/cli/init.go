@@ -54,7 +54,7 @@ func (c *cli) runInit(ctx context.Context, args []string) error {
 	meta, err := catalog.Import(ctx, c.cfg.CatalogPath, catalog.ImportOptions{
 		ParquetPath: parquet,
 		DuckDBPath:  duckdb,
-		AppVersion:  version.Version,
+		AppVersion:  version.Current(),
 	})
 	if err != nil {
 		return err
