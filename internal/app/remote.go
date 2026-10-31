@@ -67,7 +67,8 @@ func (a *App) Next(ctx context.Context) (*Shown, error) {
 				continue
 			}
 			caption := photo.Credit()
-			result, err := a.renderImage(img, caption)
+			detail := photo.Detail()
+			result, err := a.renderImage(img, caption, detail)
 			if err != nil {
 				return nil, err
 			}
@@ -77,6 +78,7 @@ func (a *App) Next(ctx context.Context) (*Shown, error) {
 				ID:       photo.ID,
 				Source:   photo.PageURL,
 				Caption:  caption,
+				Detail:   detail,
 				Renderer: a.opts.Renderer,
 				Result:   result,
 			}, nil

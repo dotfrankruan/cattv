@@ -146,6 +146,41 @@ func TestNextExcludesRecentPhotoIDs(t *testing.T) {
 	}
 }
 
+func TestNextPrintsLocationAndDateAsMutedDetail(t *testing.T) {
+	dir := t.TempDir()
+	catPath := filepath.Join(dir, "catalog.gz")
+	photo := testPhoto("located", true)
+	photo.Date = "2020-11-30"
+	photo.LocationName = "Cape Town, South Africa"
+	saveTestCatalog(t, catPath, photo)
+	data := samplePNG(t)
+	opts := testOptions(catPath, filepath.Join(dir, "state.json"))
+	var out bytes.Buffer
+	opts.Out = &out
+	opts.Color = true
+	opts.NoCaption = false
+	a, err := New(opts, fetchFunc(func(context.Context, string) ([]byte, error) {
+		return data, nil
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	shown, err := a.Next(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shown.Detail != "Cape Town, South Africa · 2020-11-30" {
+		t.Fatalf("detail = %q", shown.Detail)
+	}
+	text := out.String()
+	if !strings.Contains(text, "Cape Town, South Africa · 2020-11-30") {
+		t.Fatalf("caption detail missing from output")
+	}
+	if !strings.Contains(text, "\x1b[2m") {
+		t.Fatalf("caption detail is not styled muted")
+	}
+}
+
 func TestNextReportsOffline(t *testing.T) {
 	dir := t.TempDir()
 	catPath := filepath.Join(dir, "catalog.gz")

@@ -74,6 +74,7 @@ type Shown struct {
 	ID       string
 	Source   string
 	Caption  string
+	Detail   string
 	Renderer render.Kind
 	Result   render.Result
 }
@@ -139,7 +140,7 @@ func (a *App) drawable() (render.Env, error) {
 	}, nil
 }
 
-func (a *App) renderImage(img image.Image, caption string) (render.Result, error) {
+func (a *App) renderImage(img image.Image, caption, detail string) (render.Result, error) {
 	env, err := a.drawable()
 	if err != nil {
 		return render.Result{}, err
@@ -152,14 +153,33 @@ func (a *App) renderImage(img image.Image, caption string) (render.Result, error
 	if err != nil {
 		return render.Result{}, fmt.Errorf("render image: %w", err)
 	}
-	if !a.opts.NoCaption && strings.TrimSpace(caption) != "" {
-		caption = textsafe.Terminal(caption)
-		if a.opts.Color {
-			if _, err := fmt.Fprintf(a.opts.Out, "\x1b[2m%s\x1b[0m\n", caption); err != nil {
+	if !a.opts.NoCaption {
+		caption = textsafe.Terminal(strings.TrimSpace(caption))
+		detail = textsafe.Terminal(strings.TrimSpace(detail))
+		switch {
+		case caption == "" && detail == "":
+		case a.opts.Color && detail != "":
+			if _, err := fmt.Fprint(a.opts.Out, caption); err != nil {
 				return result, err
 			}
-		} else {
-			if _, err := fmt.Fprintln(a.opts.Out, caption); err != nil {
+			if caption != "" {
+				if _, err := fmt.Fprint(a.opts.Out, "  "); err != nil {
+					return result, err
+				}
+				detail = "· " + detail
+			}
+			if _, err := fmt.Fprintf(a.opts.Out, "\x1b[2m%s\x1b[0m\n", detail); err != nil {
+				return result, err
+			}
+		default:
+			line := caption
+			if detail != "" {
+				if line != "" {
+					line += "  ·  "
+				}
+				line += detail
+			}
+			if _, err := fmt.Fprintln(a.opts.Out, line); err != nil {
 				return result, err
 			}
 		}

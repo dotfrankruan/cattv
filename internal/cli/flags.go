@@ -43,7 +43,7 @@ func newDisplayFlags() (*displayFlags, error) {
 }
 
 func (d *displayFlags) register(fs *flag.FlagSet) {
-	fs.StringVar(&d.renderer, "renderer", "", "image backend: auto, kitty, iterm2, or ansi")
+	fs.StringVar(&d.renderer, "renderer", d.renderer, "image backend: auto, kitty, iterm2, or ansi")
 	fs.IntVar(&d.width, "width", 0, "maximum image width in terminal cells (0 = fit terminal)")
 	fs.IntVar(&d.height, "height", 0, "maximum image height in terminal cells (0 = fit terminal)")
 	fs.BoolVar(&d.noCaption, "no-caption", false, "hide the attribution caption")

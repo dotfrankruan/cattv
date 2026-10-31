@@ -5,6 +5,16 @@
 # Local smoke-test data
 /.smoke-data/
 
+# Runtime endpoints and files when generated inside the checkout
+*.fifo
+*.sock
+*.fifo.lock
+*.sock.lock
+.cattv-fifo-*
+/catalog.jsonl.gz
+/library.json
+/state.json
+
 # Build and test output
 /bin/
 /dist/

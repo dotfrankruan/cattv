@@ -202,3 +202,58 @@ func minInt(a, b int) int {
 	}
 	return b
 }
+
+func TestFIFOPathsAndHelp(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CATTV_FIFO", filepath.Join(dir, "custom.fifo"))
+	t.Setenv("CATTV_SOCKET", filepath.Join(dir, "custom.sock"))
+	code, out, errOut := runTestCLI(t, dir, "fifo", "path")
+	if code != exitOK {
+		t.Fatalf("code=%d stderr=%q", code, errOut)
+	}
+	if !strings.Contains(out, "custom.fifo") || !strings.Contains(out, "custom.sock") {
+		t.Fatalf("path output = %q", out)
+	}
+
+	code, out, errOut = runTestCLI(t, dir, "fifo", "--help")
+	if code != exitOK || errOut != "" {
+		t.Fatalf("help code=%d stderr=%q", code, errOut)
+	}
+	if !strings.Contains(out, "FIFO") || !strings.Contains(out, "client") {
+		t.Fatalf("fifo help = %q", out)
+	}
+}
+
+func TestFIFOServeRequiresExplicitRenderer(t *testing.T) {
+	dir := t.TempDir()
+	code, _, errOut := runTestCLI(t, dir, "fifo", "serve", "--renderer", "auto", "--no-socket", "--fifo", filepath.Join(dir, "cat.fifo"))
+	if code != exitUsage {
+		t.Fatalf("code=%d stderr=%q", code, errOut)
+	}
+	if !strings.Contains(errOut, "explicit renderer") {
+		t.Fatalf("stderr = %q", errOut)
+	}
+}
+
+func TestFIFOClientWithoutServerIsHelpful(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CATTV_SOCKET", filepath.Join(dir, "missing.sock"))
+	code, _, errOut := runTestCLI(t, dir, "fifo", "client")
+	if code != exitRuntime {
+		t.Fatalf("code=%d stderr=%q", code, errOut)
+	}
+	if !strings.Contains(errOut, "cattv fifo serve") {
+		t.Fatalf("stderr = %q", errOut)
+	}
+}
+
+func TestFIFODefaultRenderer(t *testing.T) {
+	t.Setenv("CATTV_RENDERER", "")
+	if got := fifoDefaultRenderer(); got != "kitty" {
+		t.Fatalf("default renderer = %q", got)
+	}
+	t.Setenv("CATTV_RENDERER", "ansi")
+	if got := fifoDefaultRenderer(); got != "ansi" {
+		t.Fatalf("configured renderer = %q", got)
+	}
+}
